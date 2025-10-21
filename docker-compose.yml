@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    image: northstar-shipping-zip-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Example: override surcharges globally if you later wire env vars
+      # FUEL_SURCHARGE_PCT: "12"
+      # REGIONAL_SURCHARGE_PCT: "3"
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped
