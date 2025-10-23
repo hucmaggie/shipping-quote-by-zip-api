@@ -23,11 +23,11 @@ def test_quote_by_zip_minimal():
     r = client.post("/quote-by-zip", json=payload)
     assert r.status_code == 200
     data = r.json()
-    # Basic shape checks
-    for key in ["origin_zip","dest_zip","distance_km","total_usd"]:
-        assert key in data
-    assert data["dest_zip"] == "30301"
-    assert data["origin_zip"] == "90001"
+    # Only total_usd should be in the response
+    assert "total_usd" in data
+    assert len(data) == 1  # Only one field
+    assert isinstance(data["total_usd"], (int, float))
+    assert data["total_usd"] > 0
 
 def test_quote_by_zip_unknown_zip():
     payload = {

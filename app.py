@@ -57,31 +57,20 @@ def round2(x: float) -> float:
 
 # ---------------- Request/Response models ----------------
 class ZipQuoteRequest(BaseModel):
-    # Only the destination ZIP is required; origin defaults to Northstar LA DC (90001)
+    # Only the destination ZIP is required; all other fields have sensible defaults
     dest_zip: str = Field(description="Destination ZIP code")
     origin_zip: Optional[str] = Field(default="90001", description="Origin ZIP (defaults to Northstar LA DC)")
-    weight_kg: float = Field(gt=0)
-    length_cm: float = Field(gt=0)
-    width_cm: float = Field(gt=0)
-    height_cm: float = Field(gt=0)
-    mode: Literal["ground", "air", "express"] = "ground"
-    fuel_surcharge_pct: float = Field(default=12.0, ge=0)
-    regional_surcharge_pct: float = Field(default=3.0, ge=0)
-    enterprise_rate_card: bool = Field(default=False)
+    weight_kg: Optional[float] = Field(default=1.0, gt=0, description="Package weight in kg (default: 1.0 kg)")
+    length_cm: Optional[float] = Field(default=30.0, gt=0, description="Package length in cm (default: 30.0 cm)")
+    width_cm: Optional[float] = Field(default=20.0, gt=0, description="Package width in cm (default: 20.0 cm)")
+    height_cm: Optional[float] = Field(default=10.0, gt=0, description="Package height in cm (default: 10.0 cm)")
+    mode: Optional[Literal["ground", "air", "express"]] = Field(default="ground", description="Shipping mode (default: ground)")
+    fuel_surcharge_pct: Optional[float] = Field(default=12.0, ge=0, description="Fuel surcharge percentage (default: 12.0%)")
+    regional_surcharge_pct: Optional[float] = Field(default=3.0, ge=0, description="Regional surcharge percentage (default: 3.0%)")
+    enterprise_rate_card: Optional[bool] = Field(default=False, description="Apply enterprise discount (default: False)")
 
 class ZipQuoteResponse(BaseModel):
-    origin_zip: str
-    dest_zip: str
-    distance_km: float
-    chargeable_weight_kg: float
-    base_cost_usd: float
-    distance_multiplier: float
-    handling_fee_usd: float
-    fuel_surcharge_usd: float
-    regional_surcharge_usd: float
-    enterprise_discount_usd: float
     total_usd: float
-    notes: str
 
 # ---------------- Core cost calculation (re-uses KA1 logic) ----------------
 def compute_cost_from_distance_km(distance_km: float, *, weight_kg: float, length_cm: float, width_cm: float, height_cm: float,
@@ -98,46 +87,43 @@ def compute_cost_from_distance_km(distance_km: float, *, weight_kg: float, lengt
     enterprise_discount = 0.10 * (base_adj + h_fee + fuel_fee + regional_fee) if enterprise else 0.0
     total = base_adj + h_fee + fuel_fee + regional_fee - enterprise_discount
     return ZipQuoteResponse(
-        origin_zip="",
-        dest_zip="",
-        distance_km=round2(distance_km),
-        chargeable_weight_kg=round2(chargeable),
-        base_cost_usd=round2(base),
-        distance_multiplier=round2(dmult),
-        handling_fee_usd=round2(h_fee),
-        fuel_surcharge_usd=round2(fuel_fee),
-        regional_surcharge_usd=round2(regional_fee),
-        enterprise_discount_usd=round2(enterprise_discount),
-        total_usd=round2(total),
-        notes=("Calculated per KA1: weight/dimensions, distance & mode, and fuel/regional surcharges. "
-               "Enterprise discounts simulate pre-negotiated rate cards.")
+        total_usd=round2(total)
     )
 
 # ---------------- REST endpoint ----------------
 @app.post("/quote-by-zip", response_model=ZipQuoteResponse)
 def quote_by_zip(req: ZipQuoteRequest):
-    if req.origin_zip not in ZIP_DB:
-        raise HTTPException(status_code=400, detail=f"Unknown origin ZIP {req.origin_zip}. Add it to ZIP_DB or integrate a ZIP service.")
+    # Use defaults for optional fields if not provided
+    origin_zip = req.origin_zip or "90001"
+    weight_kg = req.weight_kg or 1.0
+    length_cm = req.length_cm or 30.0
+    width_cm = req.width_cm or 20.0
+    height_cm = req.height_cm or 10.0
+    mode = req.mode or "ground"
+    fuel_pct = req.fuel_surcharge_pct or 12.0
+    regional_pct = req.regional_surcharge_pct or 3.0
+    enterprise = req.enterprise_rate_card or False
+    
+    if origin_zip not in ZIP_DB:
+        raise HTTPException(status_code=400, detail=f"Unknown origin ZIP {origin_zip}. Add it to ZIP_DB or integrate a ZIP service.")
     if req.dest_zip not in ZIP_DB:
         raise HTTPException(status_code=400, detail=f"Unknown destination ZIP {req.dest_zip}. Add it to ZIP_DB or integrate a ZIP service.")
 
-    origin_ll = ZIP_DB[req.origin_zip]
+    origin_ll = ZIP_DB[origin_zip]
     dest_ll = ZIP_DB[req.dest_zip]
     distance_km = haversine_km(origin_ll, dest_ll)
 
     resp = compute_cost_from_distance_km(
         distance_km,
-        weight_kg=req.weight_kg,
-        length_cm=req.length_cm,
-        width_cm=req.width_cm,
-        height_cm=req.height_cm,
-        mode=req.mode,
-        fuel_pct=req.fuel_surcharge_pct,
-        regional_pct=req.regional_surcharge_pct,
-        enterprise=req.enterprise_rate_card,
+        weight_kg=weight_kg,
+        length_cm=length_cm,
+        width_cm=width_cm,
+        height_cm=height_cm,
+        mode=mode,
+        fuel_pct=fuel_pct,
+        regional_pct=regional_pct,
+        enterprise=enterprise,
     )
-    resp.origin_zip = req.origin_zip
-    resp.dest_zip = req.dest_zip
     return resp
 
 # ---------------- Health check ----------------
