@@ -55,6 +55,10 @@ def handling_fee(weight_kg: float, length_cm: float, width_cm: float, height_cm:
 def round2(x: float) -> float:
     return round(float(x) + 1e-9, 2)
 
+def format_currency(amount: float) -> str:
+    """Format amount as US currency with $, commas, and 2 decimals"""
+    return f"${amount:,.2f}"
+
 # ---------------- Request/Response models ----------------
 class ZipQuoteRequest(BaseModel):
     # Only the destination ZIP is required; all other fields have sensible defaults
@@ -70,7 +74,13 @@ class ZipQuoteRequest(BaseModel):
     enterprise_rate_card: Optional[bool] = Field(default=False, description="Apply enterprise discount (default: False)")
 
 class ZipQuoteResponse(BaseModel):
-    total_usd: float
+    base_cost_usd: str
+    distance_multiplier: float
+    handling_fee_usd: str
+    fuel_surcharge_usd: str
+    regional_surcharge_usd: str
+    enterprise_discount_usd: str
+    total_usd: str
 
 # ---------------- Core cost calculation (re-uses KA1 logic) ----------------
 def compute_cost_from_distance_km(distance_km: float, *, weight_kg: float, length_cm: float, width_cm: float, height_cm: float,
@@ -87,7 +97,13 @@ def compute_cost_from_distance_km(distance_km: float, *, weight_kg: float, lengt
     enterprise_discount = 0.10 * (base_adj + h_fee + fuel_fee + regional_fee) if enterprise else 0.0
     total = base_adj + h_fee + fuel_fee + regional_fee - enterprise_discount
     return ZipQuoteResponse(
-        total_usd=round2(total)
+        base_cost_usd=format_currency(round2(base)),
+        distance_multiplier=round2(dmult),
+        handling_fee_usd=format_currency(round2(h_fee)),
+        fuel_surcharge_usd=format_currency(round2(fuel_fee)),
+        regional_surcharge_usd=format_currency(round2(regional_fee)),
+        enterprise_discount_usd=format_currency(round2(enterprise_discount)),
+        total_usd=format_currency(round2(total))
     )
 
 # ---------------- REST endpoint ----------------

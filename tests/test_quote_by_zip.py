@@ -23,11 +23,24 @@ def test_quote_by_zip_minimal():
     r = client.post("/quote-by-zip", json=payload)
     assert r.status_code == 200
     data = r.json()
-    # Only total_usd should be in the response
-    assert "total_usd" in data
-    assert len(data) == 1  # Only one field
-    assert isinstance(data["total_usd"], (int, float))
-    assert data["total_usd"] > 0
+    # Check all expected fields are in the response
+    expected_fields = [
+        "base_cost_usd", "distance_multiplier", "handling_fee_usd", 
+        "fuel_surcharge_usd", "regional_surcharge_usd", "enterprise_discount_usd", "total_usd"
+    ]
+    for field in expected_fields:
+        assert field in data
+    
+    # Check USD fields are formatted as currency strings
+    usd_fields = ["base_cost_usd", "handling_fee_usd", "fuel_surcharge_usd", 
+                  "regional_surcharge_usd", "enterprise_discount_usd", "total_usd"]
+    for field in usd_fields:
+        assert isinstance(data[field], str)
+        assert data[field].startswith("$")
+        assert "," in data[field] or "." in data[field]  # Currency format
+    
+    # Check distance_multiplier is a number
+    assert isinstance(data["distance_multiplier"], (int, float))
 
 def test_quote_by_zip_unknown_zip():
     payload = {
