@@ -51,4 +51,8 @@ def test_quote_by_zip_unknown_zip():
         "height_cm": 10,
     }
     r = client.post("/quote-by-zip", json=payload)
-    assert r.status_code == 400
+    # Unknown ZIP codes now use fallback coordinates instead of returning 400
+    assert r.status_code == 200
+    data = r.json()
+    assert "total_usd" in data
+    assert data["total_usd"].startswith("$")
