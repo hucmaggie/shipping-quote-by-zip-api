@@ -45,7 +45,7 @@ jobs:
 
       - name: Checkout
         if: steps.vercel-cfg.outputs.configured == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         if: steps.vercel-cfg.outputs.configured == 'true'
